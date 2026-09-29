@@ -1,2 +1,1 @@
-# Status-de-carregamento
-Controle de cargas por turno: acompanhe status, registre ocorrências com fotos e gere o relatório do turno para o WhatsApp. Funciona offline.
+Cargas do Turno é um app para acompanhar o carregamento de caminhões durante o turno. Ele importa a planilha do dia, registra cada mudança de status com horário e responsável, anota ocorrências e atrasos (com fotos) e gera o relatório do turno, pronto para compartilhar no WhatsApp ou exportar em CSV. Funciona offline, direto no celular.
