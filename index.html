@@ -45,7 +45,7 @@
     <script>
         // Configuração do Supabase
         const SUPABASE_URL = 'https://zxrmvlxzybdgdogsafnb.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4cm12bHh6eWJkZ2RvZ3NhZm5iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDczMTcyNiwiZXhwIjoyMTA2MzA3NzI2fQ.i8SzvMwrZ-y6R9DsQ6mSm-cJ4eeZlHs_4jQmD_4yuIk'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4cm12bHh6eWJkZ2RvZ3NhZm5iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDczMTcyNiwiZXhwIjoyMTA2MzA3NzI2fQ.i8SzvMwrZ-y6R9DsQ6mSm-cJ4eeZlHs_4jQmD_4yuIk';
 
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -61,7 +61,7 @@
                 renderizarTabela(data || []);
             } catch (err) {
                 console.error("Erro ao carregar:", err.message);
-                document.getElementById('loading').innerText = "Erro ao conectar à base de dados. O painel está pronto para receber novas importações.";
+                document.getElementById('loading').innerText = "Erro ao conectar à base de dados. O painel está pronto.";
                 setTimeout(() => {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('conteudo').style.display = 'block';
@@ -93,9 +93,40 @@
             });
         }
 
-        function importarDados() {
-            alert("Cole aqui os dados copiados da planilha do Excel para processar e salvar.");
-            // Lógica de salvamento e importação
+        async function importarDados() {
+            const textoColado = prompt("Cole aqui os dados copiados da planilha do Excel:");
+            if (!textoColado) return;
+
+            const linhas = textoColado.trim().split('\n');
+            const novasCargas = [];
+
+            // Ignora o cabeçalho (linha 0) e processa o resto
+            for (let i = 1; i < linhas.length; i++) {
+                const colunas = linhas[i].split('\t');
+                if (colunas.length >= 4) {
+                    novasCargas.push({
+                        numero: colunas[0].trim(),
+                        transportadora: colunas[1].trim(),
+                        motorista: colunas[2].trim(),
+                        status: colunas[3].trim()
+                    });
+                }
+            }
+
+            if (novasCargas.length === 0) {
+                alert("Nenhum dado válido encontrado. Certifique-se de copiar as colunas corretamente.");
+                return;
+            }
+
+            // Envia para o Supabase
+            const { error } = await _supabase.from('cargas').insert(novasCargas);
+
+            if (error) {
+                alert("Erro ao salvar no Supabase: " + error.message);
+            } else {
+                alert("Cargas importadas com sucesso!");
+                carregarCargas(); // Recarrega a tabela na tela
+            }
         }
 
         // Executa ao carregar a página
