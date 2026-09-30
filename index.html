@@ -28,6 +28,7 @@ dialog{border:none;border-radius:12px;padding:14px;width:min(92vw,560px);margin:
 dialog::backdrop{background:rgba(0,0,0,.5)}
 dialog label{display:block;font-size:.8rem;margin:8px 0 2px}
 dialog select,dialog input,dialog textarea{width:100%}
+@media(min-width:900px){main{max-width:1200px!important;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}.c{margin:0!important}}
 </style>
 </head>
 <body>
@@ -37,7 +38,7 @@ dialog select,dialog input,dialog textarea{width:100%}
     <select id="quem" onchange="S.quem=this.value;save()"></select>
     <button onclick="novaPessoa()">＋ Pessoa</button>
     <select id="turno" onchange="S.turno=this.value;save()"><option value="">Turno</option><option>A</option><option>B</option><option>C</option></select>
-    <button onclick="$('dImp').showModal()">📥 Importar</button>
+    <button id="btnNuvem" onclick="abrirNuvem()">☁️ off</button><button onclick="$('dImp').showModal()">📥 Importar</button>
     <button onclick="abrirRel()">📤 Relatório</button>
   </div>
 </header>
@@ -49,6 +50,15 @@ dialog select,dialog input,dialog textarea{width:100%}
   <p style="font-size:.8rem;margin:6px 0">Copie as linhas da planilha (na mesma ordem das colunas: Data/Hora, Nº, Transportadora, Motorista, Tipo, Status, Plts inteiros, Fracionados, Itens, Turno, Conferente, Turno, Operador, Destino) e cole abaixo. Cargas já existentes são ignoradas.</p>
   <textarea id="tsv" rows="8" placeholder="Cole aqui"></textarea>
   <div class="row" style="margin-top:8px"><button class="pri" onclick="importar()">Importar</button><button onclick="$('dImp').close()">Cancelar</button></div>
+</dialog>
+
+<dialog id="dNuvem">
+  <b>☁️ Sincronização (Supabase)</b>
+  <p id="nvSt" style="font-size:.8rem;margin:6px 0"></p>
+  <label>Project URL</label><input type="text" id="nvUrl" placeholder="https://xxxx.supabase.co">
+  <label>Chave anon / public</label><input type="text" id="nvKey" placeholder="Cole a chave anon/public">
+  <p style="font-size:.75rem;color:#b00020;margin-top:6px">Piloto: use somente a chave anon/public e somente dados fictícios.</p>
+  <div class="row" style="margin-top:8px"><button class="pri" onclick="salvarNuvem()">Conectar</button><button onclick="sincronizar(true)">Sincronizar</button><button onclick="desconectar()">Desconectar</button><button onclick="$('dNuvem').close()">Fechar</button></div>
 </dialog>
 
 <dialog id="dOc">
@@ -80,7 +90,7 @@ const AR=['Expedição Derivados','LC','LC + Derivados'];
 const MOT=['Lote não encontrado','Caminhão sujo / lavação','Quebra de máquina','Palete avariado / faltando mercadoria','Sem veículo / motorista','Falta de operador ou empilhadeira','Outro'];
 let S;try{S=JSON.parse(localStorage.cg)}catch(e){}
 S=Object.assign({cargas:[],pessoas:[],quem:'',turno:'',arq:[]},S||{});
-const save=()=>localStorage.cg=JSON.stringify(S);
+const save=(ag=true)=>{localStorage.cg=JSON.stringify(S);if(ag)agendar()};
 const f=id=>S.cargas.find(c=>c.id==id);
 const hm=t=>t?new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
 const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
@@ -98,31 +108,32 @@ function render(){
   $('res').innerText=`✅ ${n(c=>c.st=='CARREGADO')} · 🔵 ${n(c=>/PRONT/.test(c.st))} · 🔧 ${n(c=>/SEPARA|AG\.|EM CARREG/.test(c.st))} · ⚪ ${n(c=>c.st=='NÃO INICIADA')}  de ${cs.length}`;
   $('quem').innerHTML='<option value="">Quem opera?</option>'+S.pessoas.map(p=>`<option ${p==S.quem?'selected':''}>${esc(p)}</option>`).join('');
   $('turno').value=S.turno;
+  estado();
   $('lista').innerHTML=cs.length?cs.map(c=>`<div class="c" style="border-color:${COR[c.st]}">
     <b>${esc(c.prev)} · ${esc(c.dest)}</b><small>${esc(c.tr)} — ${esc(c.mot)}</small>
     <div class="t"><span>${esc(c.tipo)}</span><span>${esc(c.pi)} int + ${esc(c.pf)} frac</span><span>${esc(c.it)} itens</span><span>Nº ${c.id}</span></div>
     <select onchange="setSt('${c.id}',this.value)" style="background:${COR[c.st]}22">${ST.map(s=>`<option ${s==c.st?'selected':''}>${s}</option>`).join('')}</select>
     <div class="t"><span>Chegada ${hm(c.ch)||'–'}</span><span>Início ${hm(c.ini)||'–'}</span><span>Fim ${hm(c.fim)||'–'}</span><span>Lib. ${hm(c.lib)||'–'}</span></div>
     ${AR.map(a=>atr(c,a)?`<span class="b">${a} ${hhmm(atr(c,a))}</span>`:'').join('')}
-    <div class="row" style="margin-top:6px"><button onclick="abrirOc('${c.id}')">＋ Ocorrência</button>
+    <div class="row" style="margin-top:6px"><button onclick="abrirOc('${c.id}')">＋ Ocorrência</button>${c.cf?`<span class="b" style="background:#e6f4ea;color:#1e7e34">✔ ${esc(c.cf.q)} ${hm(c.cf.t)}</span>`:`<button onclick="validar('${c.id}')">✔ Validar</button>`}
     ${c.st=='CARREGADO'&&!c.lib?`<button onclick="liberar('${c.id}')">Liberar</button>`:''}
-    <input type="number" placeholder="Shelf %" value="${esc(c.shelf)}" style="width:90px" onchange="f('${c.id}').shelf=this.value;save()"></div>
-    ${c.oc.map(o=>`<div class="o">⚠️ ${hm(o.t)} ${esc(o.mot)} — ${o.min} min (${o.ar}) ${esc(o.obs)} · ${esc(o.q)} ${o.fotos.length?'📷'+o.fotos.length:''}</div>`).join('')}
+    <input type="number" placeholder="Shelf %" value="${esc(c.shelf)}" style="width:90px" onchange="const c=f('${c.id}');c.shelf=this.value;tocar(c);save()"></div>
+    ${c.oc.map(o=>`<div class="o">⚠️ ${hm(o.t)} ${esc(o.mot)} — ${o.min} min (${o.ar}) ${esc(o.obs)} · ${esc(o.q)} ${o.fotos.length?'📷'+o.fotos.length:''}<div>${fotosHtml(c,o)}</div></div>`).join('')}
   </div>`).join(''):'<p style="text-align:center;padding:30px;color:#666">Nenhuma carga. Toque em Importar e cole as linhas do Excel.</p>';
 }
 function setSt(id,v){
   if(!S.quem){alert('Selecione quem está operando.');return render()}
   const c=f(id),t=Date.now(),m={'AG. CARREGAMENTO':'ch','EM CARREGAMENTO':'ini','CARREGADO':'fim'}[v];
-  c.st=v;c.log.push({t,st:v,q:S.quem});if(m&&!c[m])c[m]=t;save();render();
+  c.st=v;c.log.push({t,st:v,q:S.quem});if(m&&!c[m])c[m]=t;tocar(c);save();render();
 }
-function liberar(id){f(id).lib=Date.now();save();render()}
+function liberar(id){const c=f(id);c.lib=Date.now();tocar(c);save();render()}
 function novaPessoa(){const p=(prompt('Nome (conferente/operador/assistente):')||'').trim();if(p&&!S.pessoas.includes(p)){S.pessoas.push(p);S.quem=p;save();render()}}
 function importar(){
   let n=0;
   $('tsv').value.split('\n').map(l=>l.split('\t')).forEach(x=>{
     const id=(x[1]||'').trim();if(!/^\d+$/.test(id)||S.cargas.some(c=>c.id==id))return;
     const h=(x[0]||'').match(/(\d{1,2}):(\d{2})/),st=(x[5]||'').trim().toUpperCase();
-    S.cargas.push({id,prev:h?h[1].padStart(2,'0')+':'+h[2]:'',tr:(x[2]||'').trim(),mot:(x[3]||'').trim(),tipo:(x[4]||'').trim(),st:ST.includes(st)?st:'NÃO INICIADA',pi:(x[6]||'').trim(),pf:(x[7]||'').trim(),it:(x[8]||'').trim(),tu:(x[9]||'').trim(),conf:(x[10]||'').trim(),op:(x[12]||'').trim(),dest:(x[13]||'').trim(),shelf:'',oc:[],log:[]});n++;
+    S.cargas.push({id,prev:h?h[1].padStart(2,'0')+':'+h[2]:'',tr:(x[2]||'').trim(),mot:(x[3]||'').trim(),tipo:(x[4]||'').trim(),st:ST.includes(st)?st:'NÃO INICIADA',pi:(x[6]||'').trim(),pf:(x[7]||'').trim(),it:(x[8]||'').trim(),tu:(x[9]||'').trim(),conf:(x[10]||'').trim(),op:(x[12]||'').trim(),dest:(x[13]||'').trim(),shelf:'',oc:[],log:[],dia:hoje(),dirty:true,upd:Date.now()});n++;
   });
   save();render();$('tsv').value='';$('dImp').close();alert(n+' carga(s) importada(s).');
 }
@@ -137,7 +148,7 @@ function abrirOc(id){
 async function salvarOc(){
   const fotos=[];
   for(const fl of $('foto').files){const k=uid();await put(k,await comprimir(fl));fotos.push(k)}
-  f(ocId).oc.push({t:Date.now(),ar:$('ocAr').value,mot:$('ocMot').value,min:+$('ocMin').value||0,obs:$('ocObs').value.trim(),q:S.quem,fotos});
+  f(ocId).oc.push({id:uid(),t:Date.now(),ar:$('ocAr').value,mot:$('ocMot').value,min:+$('ocMin').value||0,obs:$('ocObs').value.trim(),q:S.quem,fotos});
   save();render();$('dOc').close();
 }
 
@@ -170,7 +181,7 @@ function baixarCsv(){
 const backup=()=>baixar('backup_cargas_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(S),'application/json');
 function encerrar(){
   if(!confirm('Encerrar o turno? As cargas CARREGADAS serão arquivadas (um CSV de backup será baixado). As demais continuam na lista.'))return;
-  baixarCsv();S.arq.push({d:Date.now(),turno:S.turno,cargas:S.cargas.filter(c=>c.st=='CARREGADO')});
+  baixarCsv();(S.ocultas=S.ocultas||[]).push(...S.cargas.filter(c=>c.st=='CARREGADO').map(c=>c.id));S.arq.push({d:Date.now(),turno:S.turno,cargas:S.cargas.filter(c=>c.st=='CARREGADO')});
   S.cargas=S.cargas.filter(c=>c.st!='CARREGADO');save();render();$('dRel').close();
 }
 
@@ -237,9 +248,106 @@ function baixarXlsx(){
 }
 /* fim xlsx */
 
+/* nuvem */
+let CFG=null,sb=null,canal=null,busy=false,tm=null,ST_NV='ok';
+try{CFG=JSON.parse(localStorage.cgcfg)}catch(e){}
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const hoje=()=>iso(new Date()),desde=()=>iso(new Date(Date.now()-3*864e5));
+const tocar=c=>{c.upd=Date.now();c.dirty=true};
+function agendar(){if(!CFG)return;clearTimeout(tm);tm=setTimeout(()=>sincronizar(),1200)}
+function estado(t,e){
+  if(t)ST_NV=t;
+  const p=S.cargas.filter(c=>c.dirty||c.oc.some(o=>!o.sync)).length;
+  if($('btnNuvem'))$('btnNuvem').innerText='☁️ '+(!CFG?'off':ST_NV=='erro'?'⚠️':p?'⏳'+p:'✓');
+  if($('nvSt'))$('nvSt').innerText=!CFG?'Não conectado.':ST_NV=='erro'?'Erro: '+((e&&e.message)||window._nvErr||'falha')+'. Os dados continuam salvos no aparelho.':p?p+' carga(s) aguardando envio.':'Conectado e sincronizado.';
+  if(e)window._nvErr=e.message||String(e);
+}
+function fotosHtml(c,o){
+  return CFG?o.fotos.map(k=>`<img src="${esc(CFG.url)}/storage/v1/object/public/fotos/${c.id}/${k}.jpg" loading="lazy" onerror="this.style.display='none'" onclick="window.open(this.src)" style="height:${innerWidth>900?140:56}px;border-radius:6px;margin:4px 4px 0 0">`).join(''):'';
+}
+function validar(id){
+  if(!S.quem){alert('Selecione quem está operando.');return}
+  const c=f(id);c.cf={t:Date.now(),q:S.quem};tocar(c);save();render();
+}
+function abrirNuvem(){$('nvUrl').value=CFG?CFG.url:'';$('nvKey').value=CFG?CFG.key:'';estado();$('dNuvem').showModal()}
+function salvarNuvem(){
+  const url=$('nvUrl').value.trim().replace(/\/+$/,''),key=$('nvKey').value.trim();
+  if(!/^https:\/\/[\w-]+\.supabase\.co$/.test(url)){alert('A URL deve ser parecida com https://xxxx.supabase.co');return}
+  try{if(JSON.parse(atob(key.split('.')[1])).role==='service_role'){alert('Essa é a chave service_role (acesso total). Use apenas a chave anon/public.');return}}catch(e){}
+  if(key.length<20){alert('Cole a chave anon/public do projeto.');return}
+  CFG={url,key};localStorage.cgcfg=JSON.stringify(CFG);sb=null;canal=null;sincronizar(true);
+}
+function desconectar(){
+  try{sb&&sb.removeAllChannels()}catch(e){}
+  CFG=null;sb=null;canal=null;localStorage.removeItem('cgcfg');estado('ok');render();$('dNuvem').close();
+}
+function carregarLib(){
+  return window.supabase?Promise.resolve():new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';s.onload=ok;s.onerror=()=>er(new Error('Não foi possível carregar a biblioteca (sem internet?)'));document.head.appendChild(s)});
+}
+async function iniciar(){
+  if(sb)return;
+  await carregarLib();
+  sb=window.supabase.createClient(CFG.url,CFG.key);
+  canal=sb.channel('cg')
+    .on('postgres_changes',{event:'*',schema:'public',table:'cargas'},p=>{if(p.new&&p.new.id){mergeC(p.new);save(false);render()}})
+    .on('postgres_changes',{event:'*',schema:'public',table:'ocorrencias'},p=>{if(p.new&&p.new.id){mergeO(p.new);save(false);render()}})
+    .subscribe();
+}
+function mergeC(r){
+  if((S.ocultas||[]).includes(r.id))return;
+  const d=r.dados||{},t=Date.parse(r.atualizado_em)||0,c=f(r.id);
+  if(!c)S.cargas.push({...d,id:r.id,dia:r.dia,oc:[],log:d.log||[],upd:t,dirty:false});
+  else if(!c.dirty&&t>(c.upd||0))Object.assign(c,d,{id:r.id,dia:r.dia,upd:t});
+}
+function mergeO(r){
+  const c=f(r.carga_id);
+  if(!c||c.oc.some(o=>o.id==r.id))return;
+  c.oc.push({...(r.dados||{}),id:r.id,fotos:(r.dados&&r.dados.fotos)||[],sync:true});
+}
+async function push(){
+  for(const c of S.cargas){
+    if(c.dirty){
+      const{oc,dirty,upd,...d}=c;
+      const{error}=await sb.from('cargas').upsert({id:c.id,dia:c.dia||hoje(),dados:d,atualizado_em:new Date(c.upd||Date.now()).toISOString(),atualizado_por:S.quem||null});
+      if(error)throw error;c.dirty=false;
+    }
+    for(const o of c.oc){
+      if(o.sync)continue;
+      if(!o.id)o.id=uid();
+      o.up=o.up||[];
+      for(const k of o.fotos){
+        if(o.up.includes(k))continue;
+        const b=await get(k);
+        if(b){const{error}=await sb.storage.from('fotos').upload(c.id+'/'+k+'.jpg',b,{contentType:'image/jpeg',upsert:true});if(error)throw error}
+        o.up.push(k);
+      }
+      const{up,sync,...od}=o;
+      const{error}=await sb.from('ocorrencias').upsert({id:o.id,carga_id:c.id,dados:od});
+      if(error)throw error;o.sync=true;
+    }
+  }
+}
+async function pull(){
+  const a=await sb.from('cargas').select('*').gte('dia',desde()).limit(1000);
+  if(a.error)throw a.error;
+  a.data.forEach(mergeC);
+  const ids=a.data.map(r=>r.id);
+  if(ids.length){const b=await sb.from('ocorrencias').select('*').in('carga_id',ids);if(b.error)throw b.error;b.data.forEach(mergeO)}
+}
+async function sincronizar(m){
+  if(!CFG||busy)return;
+  if(!navigator.onLine){estado('off');return}
+  busy=true;
+  try{await iniciar();await push();await pull();estado('ok');if(m===true)alert('Sincronizado!')}
+  catch(e){estado('erro',e);if(m===true)alert('Erro: '+(e.message||e))}
+  busy=false;save(false);render();
+}
+/* fim nuvem */
+
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
 render();
+if(CFG)sincronizar();addEventListener('online',()=>sincronizar());setInterval(()=>sincronizar(),30000);
 </script>
 </body>
 </html>
