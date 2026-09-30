@@ -66,7 +66,7 @@ dialog select,dialog input,dialog textarea{width:100%}
   <textarea id="rel" rows="14" style="margin-top:8px"></textarea>
   <div class="row" style="margin-top:8px">
     <button class="pri" onclick="compartilhar()">Compartilhar</button><button onclick="copiar()">Copiar</button>
-    <button onclick="baixarCsv()">CSV</button><button onclick="backup()">Backup</button>
+    <button class="pri" onclick="baixarXlsx()">Excel</button><button onclick="baixarCsv()">CSV</button><button onclick="backup()">Backup</button>
   </div>
   <div class="row" style="margin-top:8px"><button onclick="encerrar()">Encerrar turno</button><button onclick="$('dRel').close()">Fechar</button></div>
 </dialog>
@@ -76,7 +76,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ST=['NÃO INICIADA','EM SEPARAÇÃO','FRACIONADO EM SEPARAÇÃO','FRACIONADO PRONTO','CARGA PRONTA','AG. VEÍCULO','AG. CARREGAMENTO','EM CARREGAMENTO','CARREGADO'];
 const COR={'NÃO INICIADA':'#e57373','EM SEPARAÇÃO':'#ffb74d','FRACIONADO EM SEPARAÇÃO':'#81c784','FRACIONADO PRONTO':'#bdbdbd','CARGA PRONTA':'#42a5f5','AG. VEÍCULO':'#bdbdbd','AG. CARREGAMENTO':'#bdbdbd','EM CARREGAMENTO':'#bdbdbd','CARREGADO':'#2e7d32'};
-const AR=['Expedição Derivados'];
+const AR=['Expedição Derivados','LC','LC + Derivados'];
 const MOT=['Lote não encontrado','Caminhão sujo / lavação','Quebra de máquina','Palete avariado / faltando mercadoria','Sem veículo / motorista','Falta de operador ou empilhadeira','Outro'];
 let S;try{S=JSON.parse(localStorage.cg)}catch(e){}
 S=Object.assign({cargas:[],pessoas:[],quem:'',turno:'',arq:[]},S||{});
@@ -163,7 +163,7 @@ async function compartilhar(){
 }
 function baixar(nome,txt,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;document.body.appendChild(a);a.click();a.remove()}
 function baixarCsv(){
-  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Expedição Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
+  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Expedição Derivados','Atraso LC','Atraso LC + Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
   const r=S.cargas.map(c=>[c.prev,c.id,c.tr,c.mot,c.tipo,c.st,c.pi,c.pf,c.it,c.tu,c.conf,c.op,c.dest,...AR.map(a=>hhmm(atr(c,a))),hm(c.ch),hm(c.ini),hm(c.fim),hm(c.lib),c.shelf,c.oc.map(o=>o.mot+' '+o.min+'min').join(' | ')]);
   baixar('cargas_'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+[h,...r].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
 }
@@ -173,6 +173,69 @@ function encerrar(){
   baixarCsv();S.arq.push({d:Date.now(),turno:S.turno,cargas:S.cargas.filter(c=>c.st=='CARREGADO')});
   S.cargas=S.cargas.filter(c=>c.st!='CARREGADO');save();render();$('dRel').close();
 }
+
+/* xlsx */
+function crc32(b){const t=crc32.t||(crc32.t=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0}));let r=-1;for(const x of b)r=t[(r^x)&255]^(r>>>8);return(r^-1)>>>0}
+function zip(files){
+  const e=new TextEncoder(),L=[],C=[];let o=0;
+  for(const[n,s]of Object.entries(files)){
+    const nb=e.encode(n),d=e.encode(s),cr=crc32(d);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,cr,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nb.length,true);
+    L.push(new Uint8Array(h.buffer),nb,d);
+    const g=new DataView(new ArrayBuffer(46));g.setUint32(0,0x02014b50,true);g.setUint16(4,20,true);g.setUint16(6,20,true);g.setUint16(8,0x0800,true);g.setUint16(14,0x21,true);g.setUint32(16,cr,true);g.setUint32(20,d.length,true);g.setUint32(24,d.length,true);g.setUint16(28,nb.length,true);g.setUint32(42,o,true);
+    C.push(new Uint8Array(g.buffer),nb);o+=30+nb.length+d.length;
+  }
+  const cs=C.reduce((a,x)=>a+x.length,0),z=new DataView(new ArrayBuffer(22));
+  z.setUint32(0,0x06054b50,true);z.setUint16(8,C.length/2,true);z.setUint16(10,C.length/2,true);z.setUint32(12,cs,true);z.setUint32(16,o,true);
+  return new Blob([...L,...C,new Uint8Array(z.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+const xe=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fr=t=>{const d=new Date(t);return(d.getHours()*60+d.getMinutes())/1440};
+function montarXlsx(){
+  const NS='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',HD='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),n=cs.length,last=n+1,dt=new Date().toLocaleDateString('pt-BR');
+  const H=['Data/Hora','Nº carga','Transportadora','Motorista','Tipo de Cargas','Status','Plts Inteiros','Plts Fracionados','Nº ITENS','Turno','Conferente','Turno','Operador','Destino',...AR.map(a=>'Atraso '+a),'Hora Chegada','Início Carregamento','Fim Carregamento','Hora Liberação','Shelf Min','Ocorrências'];
+  const L=i=>String.fromCharCode(65+i),A0=14,A1=A0+AR.length;
+  const cell=(r,i,v,s)=>{const ref=L(i)+r;return v===''||v==null?`<c r="${ref}" s="${s}"/>`:typeof v=='number'?`<c r="${ref}" s="${s}"><v>${v}</v></c>`:`<c r="${ref}" s="${s}" t="inlineStr"><is><t>${xe(v)}</t></is></c>`};
+  const nm=v=>/^\d+$/.test(String(v).trim())?+v:String(v??'');
+  let rows=`<row r="1" ht="34" customHeight="1">${H.map((h,i)=>cell(1,i,h,1)).join('')}</row>`;
+  cs.forEach((c,k)=>{
+    const r=k+2,v=[`${dt} ${c.prev}`,nm(c.id),c.tr,c.mot,c.tipo,c.st,nm(c.pi),nm(c.pf),nm(c.it),c.tu,c.conf,c.tu,c.op,c.dest,
+      ...AR.map(a=>atr(c,a)?atr(c,a)/1440:''),...['ch','ini','fim','lib'].map(x=>c[x]?fr(c[x]):''),
+      c.shelf!==''&&c.shelf!=null&&!isNaN(c.shelf)?+c.shelf/100:'',c.oc.map(o=>`${o.mot} ${o.min}min ${o.obs}`.trim()).join(' | ')];
+    const s=v.map((_,i)=>i==8?4:i>=A0&&i<A1?5:i>=A1&&i<A1+4?3:i==A1+4?8:2);
+    rows+=`<row r="${r}">${v.map((x,i)=>cell(r,i,x,s[i])).join('')}</row>`;
+  });
+  const R=n+3;
+  rows+=`<row r="${R}">${cell(R,0,'% VEÍCULOS ATRASO',7)}${AR.map((a,i)=>{const l=L(A0+i);return`<c r="${l}${R}" s="6"><f>COUNTIF(${l}2:${l}${last},"&gt;0")/MAX(1,COUNTA(B2:B${last}))</f></c>`}).join('')}</row>`;
+  const rule=(rng,pares,p0)=>`<conditionalFormatting sqref="${rng}">${pares.map(([e,d],i)=>`<cfRule type="cellIs" dxfId="${d}" priority="${p0+i}" operator="equal"><formula>"${xe(e)}"</formula></cfRule>`).join('')}</conditionalFormatting>`;
+  const TP=['DERIVADOS','DERIV + LC','DERIV + UHT','LC'];
+  const cf=rule('F2:F200',[['CARREGADO',0],['CARGA PRONTA',1],['NÃO INICIADA',2],['EM SEPARAÇÃO',3],['FRACIONADO EM SEPARAÇÃO',4],['FRACIONADO PRONTO',5],['AG. VEÍCULO',5],['AG. CARREGAMENTO',5],['EM CARREGAMENTO',5]],1)+rule('E2:E200',TP.map((t,i)=>[t,6+i]),20);
+  const dv=(rng,l)=>`<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${rng}"><formula1>"${xe(l.join(','))}"</formula1></dataValidation>`;
+  const dvs=`<dataValidations count="3">${dv('F2:F200',ST)}${dv('E2:E200',TP)}${dv('J2:J200 L2:L200',['A','B','C'])}</dataValidations>`;
+  const W=[17,10,34,26,14,26,9,11,8,7,16,7,14,28];
+  const cols=H.map((_,i)=>`<col min="${i+1}" max="${i+1}" width="${i==H.length-1?46:W[i]||13}" customWidth="1"/>`).join('');
+  const sheet=`${HD}<worksheet ${NS}><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${cols}</cols><sheetData>${rows}</sheetData><autoFilter ref="A1:${L(H.length-1)}${last}"/>${cf}${dvs}<pageMargins left="0.5" right="0.5" top="0.5" bottom="0.5" header="0.3" footer="0.3"/></worksheet>`;
+  const fill=c=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;
+  const bd='<border><left style="thin"><color rgb="FF999999"/></left><right style="thin"><color rgb="FF999999"/></right><top style="thin"><color rgb="FF999999"/></top><bottom style="thin"><color rgb="FF999999"/></bottom><diagonal/></border>';
+  const xf=(n,f,fi,b,al)=>`<xf numFmtId="${n}" fontId="${f}" fillId="${fi}" borderId="${b}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"${al?' applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>':'/>'}`;
+  const dx=(fl,cor,b)=>`<dxf>${b||cor?`<font>${b?'<b/>':''}${cor?`<color rgb="FF${cor}"/>`:''}</font>`:''}${fl?`<fill><patternFill patternType="solid"><fgColor rgb="FF${fl}"/><bgColor rgb="FF${fl}"/></patternFill></fill>`:''}</dxf>`;
+  const dxfs=[dx('548235','FFFFFF',1),dx('2E75B6','FFFFFF',1),dx('FFC7CE','C00000',1),dx('FFE699','',1),dx('C6EFCE','',1),dx('','',1),dx('D9D9D9','',0),dx('FFE5B4','',0),dx('F4B183','',0),dx('EDEDED','',0)];
+  const styles=`${HD}<styleSheet ${NS}><numFmts count="2"><numFmt numFmtId="164" formatCode="[h]:mm"/><numFmt numFmtId="165" formatCode="hh:mm"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fill('FFFF00')}${fill('D9EAD3')}${fill('FFC000')}</fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>${bd}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9">${xf(0,0,0,0)}${xf(0,1,2,1,1)}${xf(0,0,0,1,1)}${xf(165,0,3,1,1)}${xf(0,1,4,1,1)}${xf(164,0,0,1,1)}${xf(9,1,0,0,1)}${xf(0,1,0,0)}${xf(9,0,0,1,1)}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="${dxfs.length}">${dxfs.join('')}</dxfs></styleSheet>`;
+  const rel='http://schemas.openxmlformats.org/officeDocument/2006/relationships',ct='http://schemas.openxmlformats.org/package/2006/relationships';
+  return zip({
+    '[Content_Types].xml':`${HD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    '_rels/.rels':`${HD}<Relationships xmlns="${ct}"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    'xl/workbook.xml':`${HD}<workbook ${NS} xmlns:r="${rel}"><sheets><sheet name="Cargas" sheetId="1" r:id="rId1"/></sheets><calcPr fullCalcOnLoad="1"/></workbook>`,
+    'xl/_rels/workbook.xml.rels':`${HD}<Relationships xmlns="${ct}"><Relationship Id="rId1" Type="${rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${rel}/styles" Target="styles.xml"/></Relationships>`,
+    'xl/styles.xml':styles,'xl/worksheets/sheet1.xml':sheet
+  });
+}
+function baixarXlsx(){
+  if(!S.cargas.length){alert('Não há cargas para exportar.');return}
+  baixar('cargas_'+new Date().toISOString().slice(0,10)+'.xlsx',montarXlsx(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+/* fim xlsx */
 
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
