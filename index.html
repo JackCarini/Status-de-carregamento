@@ -257,7 +257,7 @@ const tocar=c=>{c.upd=Date.now();c.dirty=true};
 function agendar(){if(!CFG)return;clearTimeout(tm);tm=setTimeout(()=>sincronizar(),1200)}
 function estado(t,e){
   if(t)ST_NV=t;
-  const p=S.cargas.filter(c=>c.dirty||c.oc.some(o=>!o.sync)).length;
+  const p=S.cargas.filter(c=>c.dirty||!c.sy||c.oc.some(o=>!o.sync)).length;
   if($('btnNuvem'))$('btnNuvem').innerText='☁️ '+(!CFG?'off':ST_NV=='erro'?'⚠️':p?'⏳'+p:'✓');
   if($('nvSt'))$('nvSt').innerText=!CFG?'Não conectado.':ST_NV=='erro'?'Erro: '+((e&&e.message)||window._nvErr||'falha')+'. Os dados continuam salvos no aparelho.':p?p+' carga(s) aguardando envio.':'Conectado e sincronizado.';
   if(e)window._nvErr=e.message||String(e);
@@ -296,7 +296,7 @@ async function iniciar(){
 function mergeC(r){
   if((S.ocultas||[]).includes(r.id))return;
   const d=r.dados||{},t=Date.parse(r.atualizado_em)||0,c=f(r.id);
-  if(!c)S.cargas.push({...d,id:r.id,dia:r.dia,oc:[],log:d.log||[],upd:t,dirty:false});
+  if(!c)S.cargas.push({...d,id:r.id,dia:r.dia,oc:[],log:d.log||[],upd:t,dirty:false,sy:true});
   else if(!c.dirty&&t>(c.upd||0))Object.assign(c,d,{id:r.id,dia:r.dia,upd:t});
 }
 function mergeO(r){
@@ -306,10 +306,10 @@ function mergeO(r){
 }
 async function push(){
   for(const c of S.cargas){
-    if(c.dirty){
-      const{oc,dirty,upd,...d}=c;
+    if(c.dirty||!c.sy){
+      const{oc,dirty,upd,sy,...d}=c;
       const{error}=await sb.from('cargas').upsert({id:c.id,dia:c.dia||hoje(),dados:d,atualizado_em:new Date(c.upd||Date.now()).toISOString(),atualizado_por:S.quem||null});
-      if(error)throw error;c.dirty=false;
+      if(error)throw error;c.dirty=false;c.sy=true;
     }
     for(const o of c.oc){
       if(o.sync)continue;
