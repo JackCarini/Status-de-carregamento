@@ -1,251 +1,105 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🚚 Cargas do Turno - Gestão de Armazém</title>
-  <!-- Supabase Client via CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    :root {
-      --primary: #0284c7;
-      --bg-color: #f8fafc;
-      --card-bg: #ffffff;
-      --text-main: #1e293b;
-      --border-color: #cbd5e1;
-    }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      margin: 0;
-      padding: 16px;
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--card-bg);
-      padding: 16px;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 16px;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.25rem;
-    }
-    .filters select, .filters button {
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid var(--border-color);
-      font-size: 0.9rem;
-    }
-    .btn {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .btn:hover {
-      opacity: 0.9;
-    }
-    main {
-      display: grid;
-      gap: 12px;
-    }
-    .card-carga {
-      background: var(--card-bg);
-      padding: 12px 16px;
-      border-radius: 8px;
-      border-left: 5px solid var(--primary);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    dialog {
-      border: none;
-      border-radius: 12px;
-      padding: 20px;
-      max-width: 500px;
-      width: 100%;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-    dialog textarea {
-      width: 100%;
-      height: 120px;
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 0.85rem;
-    }
-    .dialog-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 12px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cargas do Turno</title>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 15px; color: #333; }
+        .header { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .btn-import { background: #007bff; color: #fff; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-import:hover { background: #0056b3; }
+        #loading { text-align: center; font-size: 16px; color: #666; margin-top: 30px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background-color: #007bff; color: white; }
+    </style>
 </head>
 <body>
 
-<header>
-  <h1>🚚 Cargas do Turno</h1>
-  <div class="filters">
-    <select id="filtroTurno" onchange="filtrarCargas()">
-      <option value="">Todos os Turnos</option>
-      <option value="A">Turno A</option>
-      <option value="B">Turno B</option>
-      <option value="C">Turno C</option>
-    </select>
-    <button class="btn" onclick="abrirModalImportacao()">📥 Importar Excel</button>
-  </div>
-</header>
+    <div class="header">
+        <h2>🚚 Cargas do Turno</h2>
+        <button class="btn-import" onclick="importarDados()">📥 Importar Excel</button>
+    </div>
 
-<main id="listaCargas">
-  <!-- Os cards de cargas serão injetados dinamicamente aqui -->
-  <p style="text-align: center; color: #64748b;">Carregando dados das cargas...</p>
-</main>
+    <div id="loading">A carregar dados das cargas...</div>
 
-<!-- Modal de Importação -->
-<dialog id="modalImportacao">
-  <b>Importar cargas do Excel</b>
-  <p style="font-size: 0.85rem; color: #475569;">
-    Copie as linhas da planilha (na mesma ordem: Data/Hora, Nº, Transportadora, Motorista, Tipo, Status, Plts inteiros, Fracionados, Itens, Turno, Conferente, Operador, Destino) e cole abaixo:
-  </p>
-  <textarea id="textoExcel" placeholder="Cole os dados aqui..."></textarea>
-  <div class="dialog-actions">
-    <button onclick="fecharModalImportacao()">Cancelar</button>
-    <button class="btn" onclick="processarEInserirCargas()">Processar e Salvar</button>
-  </div>
-</dialog>
+    <div id="conteudo" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nº Carga</th>
+                    <th>Transportadora</th>
+                    <th>Motorista</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-corpo">
+                <!-- Os dados entram aqui dinamicamente -->
+            </tbody>
+        </table>
+    </div>
 
-<script>
-  // Configuração do Supabase
-  const SUPABASE_URL = 'https://zxrmvlxzybdgdogsafnb.supabase.co';
-  // ATENÇÃO: Substitua pela sua chave anon pública real do seu projeto Supabase se necessário
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4cm12bHh6eWJkZ2RvZ3NhZm5iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDczMTcyNiwiZXhwIjoyMTA2MzA3NzI2fQ.i8SzvMwrZ-y6R9DsQ6mSm-cJ4eeZlHs_4jQmD_4yuIk; 
-  
-  let supabaseClient = null;
-  if (window.supabase) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
+    <script>
+        // Configuração do Supabase
+        const SUPABASE_URL = 'https://zxrmvlxzybdgdogsafnb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4cm12bHh6eWJkZ2RvZ3NhZm5iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDczMTcyNiwiZXhwIjoyMTA2MzA3NzI2fQ.i8SzvMwrZ-y6R9DsQ6mSm-cJ4eeZlHs_4jQmD_4yuIk'; 
 
-  let cacheCargas = [];
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  async function carregarCargas() {
-    if (!supabaseClient) return;
-    try {
-      const { data, error } = await supabaseClient.from('cargas').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      cacheCargas = data || [];
-      renderizarCargas(cacheCargas);
-    } catch (err) {
-      console.error("Erro ao buscar cargas:", err.message);
-      document.getElementById('listaCargas').innerHTML = `<p style="color: red; text-align: center;">Erro ao conectar com o banco de dados.</p>`;
-    }
-  }
+        async function carregarCargas() {
+            try {
+                const { data, error } = await _supabase
+                    .from('cargas')
+                    .select('*')
+                    .order('created_at', { ascending: false });
 
-  function renderizarCargas(cargas) {
-    const container = document.getElementById('listaCargas');
-    if (cargas.length === 0) {
-      container.innerHTML = `<p style="text-align: center; color: #64748b;">Nenhuma carga cadastrada ou encontrada.</p>`;
-      return;
-    }
+                if (error) throw error;
 
-    container.innerHTML = cargas.map(c => `
-      <div class="card-carga">
-        <strong>Nº: ${c.numero}</strong> | Transportadora: ${c.transportadora} (${c.tipo})<br>
-        <small>Destino: ${c.destino} | Status: <b>${c.status}</b> | Turno: ${c.turno} | Pallets: ${c.plts_inteiros} + ${c.fracionados} fr.</small>
-      </div>
-    `).join('');
-  }
+                renderizarTabela(data || []);
+            } catch (err) {
+                console.error("Erro ao carregar:", err.message);
+                document.getElementById('loading').innerText = "Erro ao conectar à base de dados. O painel está pronto para receber novas importações.";
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('conteudo').style.display = 'block';
+                }, 1500);
+            }
+        }
 
-  function filtrarCargas() {
-    const turnoSelecionado = document.getElementById('filtroTurno').value;
-    if (!turnoSelecionado) {
-      renderizarCargas(cacheCargas);
-    } else {
-      const filtradas = cacheCargas.filter(c => c.turno === turnoSelecionado);
-      renderizarCargas(filtradas);
-    }
-  }
+        function renderizarTabela(cargas) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('conteudo').style.display = 'block';
+            
+            const tbody = document.getElementById('tabela-corpo');
+            tbody.innerHTML = '';
 
-  function abrirModalImportacao() {
-    document.getElementById('modalImportacao').showModal();
-  }
+            if (cargas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhuma carga registada. Utilize o botão de importar.</td></tr>';
+                return;
+            }
 
-  function fecharModalImportacao() {
-    document.getElementById('modalImportacao').close();
-  }
+            cargas.forEach(carga => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${carga.numero || '-'}</td>
+                    <td>${carga.transportadora || '-'}</td>
+                    <td>${carga.motorista || '-'}</td>
+                    <td>${carga.status || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
-  // Validador e Parser Robusto para os dados colados do Excel
-  async function processarEInserirCargas() {
-    const textoBruto = document.getElementById('textoExcel').value;
-    if (!textoBruto.trim()) {
-      alert('Insira os dados copiados da planilha.');
-      return;
-    }
+        function importarDados() {
+            alert("Cole aqui os dados copiados da planilha do Excel para processar e salvar.");
+            // Lógica de salvamento e importação
+        }
 
-    const linhas = textoBruto.trim().split('\n');
-    const cargasValidas = [];
-    const erros = [];
-
-    linhas.forEach((linha, index) => {
-      const colunas = linha.split('\t').map(c => c.trim());
-
-      if (colunas.length < 13) {
-        erros.push(`Linha ${index + 1}: Colunas insuficientes (${colunas.length}/13).`);
-        return;
-      }
-
-      const [dataHora, numero, transportadora, motorista, tipo, status, pltsInteiros, fracionados, itens, turno, conferente, operador, destino] = colunas;
-
-      if (!numero || !transportadora) {
-        erros.push(`Linha ${index + 1}: Número da carga ou transportadora em branco.`);
-        return;
-      }
-
-      cargasValidas.push({
-        data_hora: dataHora || new Date().toLocaleString(),
-        numero: numero,
-        transportadora: transportadora,
-        motorista: motorista || 'N/I',
-        tipo: tipo || 'Geral',
-        status: status || 'Planejado',
-        plts_inteiros: parseInt(pltsInteiros) || 0,
-        fracionados: parseInt(fracionados) || 0,
-        itens: parseInt(itens) || 0,
-        turno: turno || 'A',
-        conferente: conferente || 'N/I',
-        operador: operador || 'N/I',
-        destino: destino || 'Geral'
-      });
-    });
-
-    if (erros.length > 0) {
-      console.warn("Inconsistências encontradas:", erros);
-      alert(`Atenção: ${erros.length} linha(s) foram ignoradas devido a erros de formatação.`);
-    }
-
-    if (cargasValidas.length > 0 && supabaseClient) {
-      try {
-        const { error } = await supabaseClient.from('cargas').insert(cargasValidas);
-        if (error) throw error;
-        alert(`${cargasValidas.length} carga(s) importada(s) com sucesso!`);
-        fecharModalImportacao();
-        document.getElementById('textoExcel').value = '';
-        carregarCargas();
-      } catch (err) {
-        alert('Erro ao salvar no Supabase: ' + err.message);
-      }
-    }
-  }
-
-  // Inicializa a listagem ao carregar a página
-  window.onload = carregarCargas;
-</script>
-
+        // Executa ao carregar a página
+        window.onload = carregarCargas;
+    </script>
 </body>
 </html>
