@@ -76,7 +76,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ST=['NÃO INICIADA','EM SEPARAÇÃO','FRACIONADO EM SEPARAÇÃO','FRACIONADO PRONTO','CARGA PRONTA','AG. VEÍCULO','AG. CARREGAMENTO','EM CARREGAMENTO','CARREGADO'];
 const COR={'NÃO INICIADA':'#e57373','EM SEPARAÇÃO':'#ffb74d','FRACIONADO EM SEPARAÇÃO':'#81c784','FRACIONADO PRONTO':'#bdbdbd','CARGA PRONTA':'#42a5f5','AG. VEÍCULO':'#bdbdbd','AG. CARREGAMENTO':'#bdbdbd','EM CARREGAMENTO':'#bdbdbd','CARREGADO':'#2e7d32'};
-const AR=['Logística','LC','Derivados'];
+const AR=['Expedição Derivados'];
 const MOT=['Lote não encontrado','Caminhão sujo / lavação','Quebra de máquina','Palete avariado / faltando mercadoria','Sem veículo / motorista','Falta de operador ou empilhadeira','Outro'];
 let S;try{S=JSON.parse(localStorage.cg)}catch(e){}
 S=Object.assign({cargas:[],pessoas:[],quem:'',turno:'',arq:[]},S||{});
@@ -163,7 +163,7 @@ async function compartilhar(){
 }
 function baixar(nome,txt,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;document.body.appendChild(a);a.click();a.remove()}
 function baixarCsv(){
-  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Logística','Atraso LC','Atraso Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
+  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Expedição Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
   const r=S.cargas.map(c=>[c.prev,c.id,c.tr,c.mot,c.tipo,c.st,c.pi,c.pf,c.it,c.tu,c.conf,c.op,c.dest,...AR.map(a=>hhmm(atr(c,a))),hm(c.ch),hm(c.ini),hm(c.fim),hm(c.lib),c.shelf,c.oc.map(o=>o.mot+' '+o.min+'min').join(' | ')]);
   baixar('cargas_'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+[h,...r].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
 }
