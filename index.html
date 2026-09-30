@@ -1,353 +1,251 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cargas do Turno</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1f4e79">
-<style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
-body{background:#eef1f5;color:#222;padding-bottom:30px}
-header{background:#1f4e79;color:#fff;padding:10px;position:sticky;top:0;z-index:5}
-header h1{font-size:1.1rem;margin-bottom:8px}
-.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-select,input,textarea,button{font-size:1rem;padding:9px;border-radius:8px;border:1px solid #bbb}
-button{background:#fff;cursor:pointer;font-weight:600}
-.pri{background:#1f4e79;color:#fff;border-color:#1f4e79}
-header select,header button{padding:7px;font-size:.85rem}
-#res{background:#fff;padding:10px;font-weight:600;text-align:center;border-bottom:1px solid #ccc}
-main{max-width:640px;margin:0 auto;padding:8px}
-.c{background:#fff;border-radius:10px;padding:10px;margin-bottom:8px;border-left:8px solid #999}
-.c b{font-size:1.05rem}.c small{color:#666;display:block}
-.c select{width:100%;margin:8px 0;font-weight:700}
-.t{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:#444;margin-bottom:6px}
-.b{display:inline-block;background:#fdecea;color:#b00020;border-radius:6px;padding:2px 6px;font-size:.8rem;margin-right:4px}
-.o{font-size:.8rem;border-top:1px dashed #ccc;padding-top:4px;margin-top:4px}
-dialog{border:none;border-radius:12px;padding:14px;width:min(92vw,560px);margin:auto}
-dialog::backdrop{background:rgba(0,0,0,.5)}
-dialog label{display:block;font-size:.8rem;margin:8px 0 2px}
-dialog select,dialog input,dialog textarea{width:100%}
-@media(min-width:900px){main{max-width:1200px!important;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}.c{margin:0!important}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚚 Cargas do Turno - Gestão de Armazém</title>
+  <!-- Supabase Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --border-color: #cbd5e1;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 16px;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .filters select, .filters button {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+    .btn {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+    main {
+      display: grid;
+      gap: 12px;
+    }
+    .card-carga {
+      background: var(--card-bg);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border-left: 5px solid var(--primary);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    dialog {
+      border: none;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    dialog textarea {
+      width: 100%;
+      height: 120px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+  </style>
 </head>
 <body>
+
 <header>
   <h1>🚚 Cargas do Turno</h1>
-  <div class="row">
-    <select id="quem" onchange="S.quem=this.value;save()"></select>
-    <button onclick="novaPessoa()">＋ Pessoa</button>
-    <select id="turno" onchange="S.turno=this.value;save()"><option value="">Turno</option><option>A</option><option>B</option><option>C</option></select>
-    <button id="btnNuvem" onclick="abrirNuvem()">☁️ off</button><button onclick="$('dImp').showModal()">📥 Importar</button>
-    <button onclick="abrirRel()">📤 Relatório</button>
+  <div class="filters">
+    <select id="filtroTurno" onchange="filtrarCargas()">
+      <option value="">Todos os Turnos</option>
+      <option value="A">Turno A</option>
+      <option value="B">Turno B</option>
+      <option value="C">Turno C</option>
+    </select>
+    <button class="btn" onclick="abrirModalImportacao()">📥 Importar Excel</button>
   </div>
 </header>
-<div id="res"></div>
-<main id="lista"></main>
 
-<dialog id="dImp">
+<main id="listaCargas">
+  <!-- Os cards de cargas serão injetados dinamicamente aqui -->
+  <p style="text-align: center; color: #64748b;">Carregando dados das cargas...</p>
+</main>
+
+<!-- Modal de Importação -->
+<dialog id="modalImportacao">
   <b>Importar cargas do Excel</b>
-  <p style="font-size:.8rem;margin:6px 0">Copie as linhas da planilha (na mesma ordem das colunas: Data/Hora, Nº, Transportadora, Motorista, Tipo, Status, Plts inteiros, Fracionados, Itens, Turno, Conferente, Turno, Operador, Destino) e cole abaixo. Cargas já existentes são ignoradas.</p>
-  <textarea id="tsv" rows="8" placeholder="Cole aqui"></textarea>
-  <div class="row" style="margin-top:8px"><button class="pri" onclick="importar()">Importar</button><button onclick="$('dImp').close()">Cancelar</button></div>
-</dialog>
-
-<dialog id="dNuvem">
-  <b>☁️ Sincronização (Supabase)</b>
-  <p id="nvSt" style="font-size:.8rem;margin:6px 0"></p>
-  <label>Project URL</label><input type="text" id="nvUrl" placeholder="https://xxxx.supabase.co">
-  <label>Chave anon / public</label><input type="text" id="nvKey" placeholder="Cole a chave anon/public">
-  <p style="font-size:.75rem;color:#b00020;margin-top:6px">Piloto: use somente a chave anon/public e somente dados fictícios.</p>
-  <div class="row" style="margin-top:8px"><button class="pri" onclick="salvarNuvem()">Conectar</button><button onclick="sincronizar(true)">Sincronizar</button><button onclick="desconectar()">Desconectar</button><button onclick="$('dNuvem').close()">Fechar</button></div>
-</dialog>
-
-<dialog id="dOc">
-  <b id="ocTit">Ocorrência</b>
-  <label>Área responsável</label><select id="ocAr"></select>
-  <label>Motivo</label><select id="ocMot"></select>
-  <label>Tempo de atraso (minutos)</label><input type="number" id="ocMin" min="0" inputmode="numeric" value="0">
-  <label>Observação</label><input type="text" id="ocObs">
-  <label>Fotos</label><input type="file" id="foto" accept="image/*" capture="environment" multiple>
-  <div class="row" style="margin-top:10px"><button class="pri" onclick="salvarOc()">Salvar</button><button onclick="$('dOc').close()">Cancelar</button></div>
-</dialog>
-
-<dialog id="dRel">
-  <b>Relatório do turno</b>
-  <textarea id="rel" rows="14" style="margin-top:8px"></textarea>
-  <div class="row" style="margin-top:8px">
-    <button class="pri" onclick="compartilhar()">Compartilhar</button><button onclick="copiar()">Copiar</button>
-    <button class="pri" onclick="baixarXlsx()">Excel</button><button onclick="baixarCsv()">CSV</button><button onclick="backup()">Backup</button>
+  <p style="font-size: 0.85rem; color: #475569;">
+    Copie as linhas da planilha (na mesma ordem: Data/Hora, Nº, Transportadora, Motorista, Tipo, Status, Plts inteiros, Fracionados, Itens, Turno, Conferente, Operador, Destino) e cole abaixo:
+  </p>
+  <textarea id="textoExcel" placeholder="Cole os dados aqui..."></textarea>
+  <div class="dialog-actions">
+    <button onclick="fecharModalImportacao()">Cancelar</button>
+    <button class="btn" onclick="processarEInserirCargas()">Processar e Salvar</button>
   </div>
-  <div class="row" style="margin-top:8px"><button onclick="encerrar()">Encerrar turno</button><button onclick="$('dRel').close()">Fechar</button></div>
 </dialog>
 
 <script>
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ST=['NÃO INICIADA','EM SEPARAÇÃO','FRACIONADO EM SEPARAÇÃO','FRACIONADO PRONTO','CARGA PRONTA','AG. VEÍCULO','AG. CARREGAMENTO','EM CARREGAMENTO','CARREGADO'];
-const COR={'NÃO INICIADA':'#e57373','EM SEPARAÇÃO':'#ffb74d','FRACIONADO EM SEPARAÇÃO':'#81c784','FRACIONADO PRONTO':'#bdbdbd','CARGA PRONTA':'#42a5f5','AG. VEÍCULO':'#bdbdbd','AG. CARREGAMENTO':'#bdbdbd','EM CARREGAMENTO':'#bdbdbd','CARREGADO':'#2e7d32'};
-const AR=['Expedição Derivados','LC','LC + Derivados'];
-const MOT=['Lote não encontrado','Caminhão sujo / lavação','Quebra de máquina','Palete avariado / faltando mercadoria','Sem veículo / motorista','Falta de operador ou empilhadeira','Outro'];
-let S;try{S=JSON.parse(localStorage.cg)}catch(e){}
-S=Object.assign({cargas:[],pessoas:[],quem:'',turno:'',arq:[]},S||{});
-const save=(ag=true)=>{localStorage.cg=JSON.stringify(S);if(ag)agendar()};
-const f=id=>S.cargas.find(c=>c.id==id);
-const hm=t=>t?new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-const atr=(c,a)=>c.oc.filter(o=>o.ar==a).reduce((s,o)=>s+o.min,0);
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-
-/* fotos em IndexedDB */
-const db=new Promise(r=>{const q=indexedDB.open('cg',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>r(q.result)});
-const put=async(k,v)=>{const d=await db;return new Promise(r=>{const t=d.transaction('f','readwrite');t.objectStore('f').put(v,k);t.oncomplete=r})};
-const get=async k=>{const d=await db;return new Promise(r=>{const q=d.transaction('f').objectStore('f').get(k);q.onsuccess=()=>r(q.result)})};
-const comprimir=fl=>new Promise(r=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1000/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(r,'image/jpeg',.7)};i.src=URL.createObjectURL(fl)});
-
-function render(){
-  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),n=g=>cs.filter(g).length;
-  $('res').innerText=`✅ ${n(c=>c.st=='CARREGADO')} · 🔵 ${n(c=>/PRONT/.test(c.st))} · 🔧 ${n(c=>/SEPARA|AG\.|EM CARREG/.test(c.st))} · ⚪ ${n(c=>c.st=='NÃO INICIADA')}  de ${cs.length}`;
-  $('quem').innerHTML='<option value="">Quem opera?</option>'+S.pessoas.map(p=>`<option ${p==S.quem?'selected':''}>${esc(p)}</option>`).join('');
-  $('turno').value=S.turno;
-  estado();
-  $('lista').innerHTML=cs.length?cs.map(c=>`<div class="c" style="border-color:${COR[c.st]}">
-    <b>${esc(c.prev)} · ${esc(c.dest)}</b><small>${esc(c.tr)} — ${esc(c.mot)}</small>
-    <div class="t"><span>${esc(c.tipo)}</span><span>${esc(c.pi)} int + ${esc(c.pf)} frac</span><span>${esc(c.it)} itens</span><span>Nº ${c.id}</span></div>
-    <select onchange="setSt('${c.id}',this.value)" style="background:${COR[c.st]}22">${ST.map(s=>`<option ${s==c.st?'selected':''}>${s}</option>`).join('')}</select>
-    <div class="t"><span>Chegada ${hm(c.ch)||'–'}</span><span>Início ${hm(c.ini)||'–'}</span><span>Fim ${hm(c.fim)||'–'}</span><span>Lib. ${hm(c.lib)||'–'}</span></div>
-    ${AR.map(a=>atr(c,a)?`<span class="b">${a} ${hhmm(atr(c,a))}</span>`:'').join('')}
-    <div class="row" style="margin-top:6px"><button onclick="abrirOc('${c.id}')">＋ Ocorrência</button>${c.cf?`<span class="b" style="background:#e6f4ea;color:#1e7e34">✔ ${esc(c.cf.q)} ${hm(c.cf.t)}</span>`:`<button onclick="validar('${c.id}')">✔ Validar</button>`}
-    ${c.st=='CARREGADO'&&!c.lib?`<button onclick="liberar('${c.id}')">Liberar</button>`:''}
-    <input type="number" placeholder="Shelf %" value="${esc(c.shelf)}" style="width:90px" onchange="const c=f('${c.id}');c.shelf=this.value;tocar(c);save()"></div>
-    ${c.oc.map(o=>`<div class="o">⚠️ ${hm(o.t)} ${esc(o.mot)} — ${o.min} min (${o.ar}) ${esc(o.obs)} · ${esc(o.q)} ${o.fotos.length?'📷'+o.fotos.length:''}<div>${fotosHtml(c,o)}</div></div>`).join('')}
-  </div>`).join(''):'<p style="text-align:center;padding:30px;color:#666">Nenhuma carga. Toque em Importar e cole as linhas do Excel.</p>';
-}
-function setSt(id,v){
-  if(!S.quem){alert('Selecione quem está operando.');return render()}
-  const c=f(id),t=Date.now(),m={'AG. CARREGAMENTO':'ch','EM CARREGAMENTO':'ini','CARREGADO':'fim'}[v];
-  c.st=v;c.log.push({t,st:v,q:S.quem});if(m&&!c[m])c[m]=t;tocar(c);save();render();
-}
-function liberar(id){const c=f(id);c.lib=Date.now();tocar(c);save();render()}
-function novaPessoa(){const p=(prompt('Nome (conferente/operador/assistente):')||'').trim();if(p&&!S.pessoas.includes(p)){S.pessoas.push(p);S.quem=p;save();render()}}
-function importar(){
-  let n=0;
-  $('tsv').value.split('\n').map(l=>l.split('\t')).forEach(x=>{
-    const id=(x[1]||'').trim();if(!/^\d+$/.test(id)||S.cargas.some(c=>c.id==id))return;
-    const h=(x[0]||'').match(/(\d{1,2}):(\d{2})/),st=(x[5]||'').trim().toUpperCase();
-    S.cargas.push({id,prev:h?h[1].padStart(2,'0')+':'+h[2]:'',tr:(x[2]||'').trim(),mot:(x[3]||'').trim(),tipo:(x[4]||'').trim(),st:ST.includes(st)?st:'NÃO INICIADA',pi:(x[6]||'').trim(),pf:(x[7]||'').trim(),it:(x[8]||'').trim(),tu:(x[9]||'').trim(),conf:(x[10]||'').trim(),op:(x[12]||'').trim(),dest:(x[13]||'').trim(),shelf:'',oc:[],log:[],dia:hoje(),dirty:true,upd:Date.now()});n++;
-  });
-  save();render();$('tsv').value='';$('dImp').close();alert(n+' carga(s) importada(s).');
-}
-let ocId=null;
-function abrirOc(id){
-  if(!S.quem){alert('Selecione quem está operando.');return}
-  ocId=id;$('ocTit').innerText='Ocorrência – '+f(id).dest;
-  $('ocAr').innerHTML=AR.map(a=>`<option>${a}</option>`).join('');
-  $('ocMot').innerHTML=MOT.map(m=>`<option>${m}</option>`).join('');
-  $('ocMin').value=0;$('ocObs').value='';$('foto').value='';$('dOc').showModal();
-}
-async function salvarOc(){
-  const fotos=[];
-  for(const fl of $('foto').files){const k=uid();await put(k,await comprimir(fl));fotos.push(k)}
-  f(ocId).oc.push({id:uid(),t:Date.now(),ar:$('ocAr').value,mot:$('ocMot').value,min:+$('ocMin').value||0,obs:$('ocObs').value.trim(),q:S.quem,fotos});
-  save();render();$('dOc').close();
-}
-
-/* relatório */
-function relatorio(){
-  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),T=cs.length||1,n=g=>cs.filter(g).length;
-  const pa=AR.map(a=>`${a} ${Math.round(100*n(c=>atr(c,a)>0)/T)}% (${hhmm(cs.reduce((s,c)=>s+atr(c,a),0))})`).join(' · ');
-  let t=`📦 *CARGAS – TURNO ${S.turno||'?'} – ${new Date().toLocaleDateString('pt-BR')}*\n✅ Carregadas: ${n(c=>c.st=='CARREGADO')}/${cs.length} | 🔵 Prontas: ${n(c=>/PRONT/.test(c.st))} | 🔧 Em andamento: ${n(c=>/SEPARA|AG\.|EM CARREG/.test(c.st))} | ⚪ Não iniciadas: ${n(c=>c.st=='NÃO INICIADA')}\n🚨 Veículos com atraso: ${pa}\n`;
-  const oc=[];cs.forEach(c=>c.oc.forEach(o=>oc.push([c,o])));
-  if(oc.length)t+='\n*Ocorrências*\n'+oc.map(([c,o])=>`• ${hm(o.t)} ${c.dest} (${c.id}) – ${o.mot}${o.min?` – ${o.min} min (${o.ar})`:''}${o.obs?' – '+o.obs:''} – ${o.q}${o.fotos.length?' 📷'+o.fotos.length:''}`).join('\n')+'\n';
-  return t+'\n*Cargas*\n'+cs.map(c=>`• ${c.prev} ${c.dest} – ${c.st}${c.fim?' (fim '+hm(c.fim)+')':''}`).join('\n');
-}
-function abrirRel(){$('rel').value=relatorio();$('dRel').showModal()}
-const copiar=()=>navigator.clipboard.writeText($('rel').value).then(()=>alert('Copiado!'));
-async function compartilhar(){
-  const text=$('rel').value,files=[];
-  try{for(const c of S.cargas)for(const o of c.oc)for(const k of o.fotos){const b=await get(k);if(b)files.push(new File([b],k+'.jpg',{type:'image/jpeg'}))}}catch(e){}
-  try{
-    if(files.length&&navigator.canShare&&navigator.canShare({files}))return await navigator.share({text,files});
-    if(navigator.share)return await navigator.share({text});
-  }catch(e){if(e.name=='AbortError')return}
-  copiar();
-}
-function baixar(nome,txt,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;document.body.appendChild(a);a.click();a.remove()}
-function baixarCsv(){
-  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Expedição Derivados','Atraso LC','Atraso LC + Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
-  const r=S.cargas.map(c=>[c.prev,c.id,c.tr,c.mot,c.tipo,c.st,c.pi,c.pf,c.it,c.tu,c.conf,c.op,c.dest,...AR.map(a=>hhmm(atr(c,a))),hm(c.ch),hm(c.ini),hm(c.fim),hm(c.lib),c.shelf,c.oc.map(o=>o.mot+' '+o.min+'min').join(' | ')]);
-  baixar('cargas_'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+[h,...r].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
-}
-const backup=()=>baixar('backup_cargas_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(S),'application/json');
-function encerrar(){
-  if(!confirm('Encerrar o turno? As cargas CARREGADAS serão arquivadas (um CSV de backup será baixado). As demais continuam na lista.'))return;
-  baixarCsv();(S.ocultas=S.ocultas||[]).push(...S.cargas.filter(c=>c.st=='CARREGADO').map(c=>c.id));S.arq.push({d:Date.now(),turno:S.turno,cargas:S.cargas.filter(c=>c.st=='CARREGADO')});
-  S.cargas=S.cargas.filter(c=>c.st!='CARREGADO');save();render();$('dRel').close();
-}
-
-/* xlsx */
-function crc32(b){const t=crc32.t||(crc32.t=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0}));let r=-1;for(const x of b)r=t[(r^x)&255]^(r>>>8);return(r^-1)>>>0}
-function zip(files){
-  const e=new TextEncoder(),L=[],C=[];let o=0;
-  for(const[n,s]of Object.entries(files)){
-    const nb=e.encode(n),d=e.encode(s),cr=crc32(d);
-    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,cr,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nb.length,true);
-    L.push(new Uint8Array(h.buffer),nb,d);
-    const g=new DataView(new ArrayBuffer(46));g.setUint32(0,0x02014b50,true);g.setUint16(4,20,true);g.setUint16(6,20,true);g.setUint16(8,0x0800,true);g.setUint16(14,0x21,true);g.setUint32(16,cr,true);g.setUint32(20,d.length,true);g.setUint32(24,d.length,true);g.setUint16(28,nb.length,true);g.setUint32(42,o,true);
-    C.push(new Uint8Array(g.buffer),nb);o+=30+nb.length+d.length;
+  // Configuração do Supabase
+  const SUPABASE_URL = 'https://zxrmvlxzybdgdogsafnb.supabase.co';
+  // ATENÇÃO: Substitua pela sua chave anon pública real do seu projeto Supabase se necessário
+  const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_PUBLICA_AQUI'; 
+  
+  let supabaseClient = null;
+  if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
-  const cs=C.reduce((a,x)=>a+x.length,0),z=new DataView(new ArrayBuffer(22));
-  z.setUint32(0,0x06054b50,true);z.setUint16(8,C.length/2,true);z.setUint16(10,C.length/2,true);z.setUint32(12,cs,true);z.setUint32(16,o,true);
-  return new Blob([...L,...C,new Uint8Array(z.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-}
-const xe=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const fr=t=>{const d=new Date(t);return(d.getHours()*60+d.getMinutes())/1440};
-function montarXlsx(){
-  const NS='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',HD='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),n=cs.length,last=n+1,dt=new Date().toLocaleDateString('pt-BR');
-  const H=['Data/Hora','Nº carga','Transportadora','Motorista','Tipo de Cargas','Status','Plts Inteiros','Plts Fracionados','Nº ITENS','Turno','Conferente','Turno','Operador','Destino',...AR.map(a=>'Atraso '+a),'Hora Chegada','Início Carregamento','Fim Carregamento','Hora Liberação','Shelf Min','Ocorrências'];
-  const L=i=>String.fromCharCode(65+i),A0=14,A1=A0+AR.length;
-  const cell=(r,i,v,s)=>{const ref=L(i)+r;return v===''||v==null?`<c r="${ref}" s="${s}"/>`:typeof v=='number'?`<c r="${ref}" s="${s}"><v>${v}</v></c>`:`<c r="${ref}" s="${s}" t="inlineStr"><is><t>${xe(v)}</t></is></c>`};
-  const nm=v=>/^\d+$/.test(String(v).trim())?+v:String(v??'');
-  let rows=`<row r="1" ht="34" customHeight="1">${H.map((h,i)=>cell(1,i,h,1)).join('')}</row>`;
-  cs.forEach((c,k)=>{
-    const r=k+2,v=[`${dt} ${c.prev}`,nm(c.id),c.tr,c.mot,c.tipo,c.st,nm(c.pi),nm(c.pf),nm(c.it),c.tu,c.conf,c.tu,c.op,c.dest,
-      ...AR.map(a=>atr(c,a)?atr(c,a)/1440:''),...['ch','ini','fim','lib'].map(x=>c[x]?fr(c[x]):''),
-      c.shelf!==''&&c.shelf!=null&&!isNaN(c.shelf)?+c.shelf/100:'',c.oc.map(o=>`${o.mot} ${o.min}min ${o.obs}`.trim()).join(' | ')];
-    const s=v.map((_,i)=>i==8?4:i>=A0&&i<A1?5:i>=A1&&i<A1+4?3:i==A1+4?8:2);
-    rows+=`<row r="${r}">${v.map((x,i)=>cell(r,i,x,s[i])).join('')}</row>`;
-  });
-  const R=n+3;
-  rows+=`<row r="${R}">${cell(R,0,'% VEÍCULOS ATRASO',7)}${AR.map((a,i)=>{const l=L(A0+i);return`<c r="${l}${R}" s="6"><f>COUNTIF(${l}2:${l}${last},"&gt;0")/MAX(1,COUNTA(B2:B${last}))</f></c>`}).join('')}</row>`;
-  const rule=(rng,pares,p0)=>`<conditionalFormatting sqref="${rng}">${pares.map(([e,d],i)=>`<cfRule type="cellIs" dxfId="${d}" priority="${p0+i}" operator="equal"><formula>"${xe(e)}"</formula></cfRule>`).join('')}</conditionalFormatting>`;
-  const TP=['DERIVADOS','DERIV + LC','DERIV + UHT','LC'];
-  const cf=rule('F2:F200',[['CARREGADO',0],['CARGA PRONTA',1],['NÃO INICIADA',2],['EM SEPARAÇÃO',3],['FRACIONADO EM SEPARAÇÃO',4],['FRACIONADO PRONTO',5],['AG. VEÍCULO',5],['AG. CARREGAMENTO',5],['EM CARREGAMENTO',5]],1)+rule('E2:E200',TP.map((t,i)=>[t,6+i]),20);
-  const dv=(rng,l)=>`<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${rng}"><formula1>"${xe(l.join(','))}"</formula1></dataValidation>`;
-  const dvs=`<dataValidations count="3">${dv('F2:F200',ST)}${dv('E2:E200',TP)}${dv('J2:J200 L2:L200',['A','B','C'])}</dataValidations>`;
-  const W=[17,10,34,26,14,26,9,11,8,7,16,7,14,28];
-  const cols=H.map((_,i)=>`<col min="${i+1}" max="${i+1}" width="${i==H.length-1?46:W[i]||13}" customWidth="1"/>`).join('');
-  const sheet=`${HD}<worksheet ${NS}><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${cols}</cols><sheetData>${rows}</sheetData><autoFilter ref="A1:${L(H.length-1)}${last}"/>${cf}${dvs}<pageMargins left="0.5" right="0.5" top="0.5" bottom="0.5" header="0.3" footer="0.3"/></worksheet>`;
-  const fill=c=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;
-  const bd='<border><left style="thin"><color rgb="FF999999"/></left><right style="thin"><color rgb="FF999999"/></right><top style="thin"><color rgb="FF999999"/></top><bottom style="thin"><color rgb="FF999999"/></bottom><diagonal/></border>';
-  const xf=(n,f,fi,b,al)=>`<xf numFmtId="${n}" fontId="${f}" fillId="${fi}" borderId="${b}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"${al?' applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>':'/>'}`;
-  const dx=(fl,cor,b)=>`<dxf>${b||cor?`<font>${b?'<b/>':''}${cor?`<color rgb="FF${cor}"/>`:''}</font>`:''}${fl?`<fill><patternFill patternType="solid"><fgColor rgb="FF${fl}"/><bgColor rgb="FF${fl}"/></patternFill></fill>`:''}</dxf>`;
-  const dxfs=[dx('548235','FFFFFF',1),dx('2E75B6','FFFFFF',1),dx('FFC7CE','C00000',1),dx('FFE699','',1),dx('C6EFCE','',1),dx('','',1),dx('D9D9D9','',0),dx('FFE5B4','',0),dx('F4B183','',0),dx('EDEDED','',0)];
-  const styles=`${HD}<styleSheet ${NS}><numFmts count="2"><numFmt numFmtId="164" formatCode="[h]:mm"/><numFmt numFmtId="165" formatCode="hh:mm"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fill('FFFF00')}${fill('D9EAD3')}${fill('FFC000')}</fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>${bd}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9">${xf(0,0,0,0)}${xf(0,1,2,1,1)}${xf(0,0,0,1,1)}${xf(165,0,3,1,1)}${xf(0,1,4,1,1)}${xf(164,0,0,1,1)}${xf(9,1,0,0,1)}${xf(0,1,0,0)}${xf(9,0,0,1,1)}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="${dxfs.length}">${dxfs.join('')}</dxfs></styleSheet>`;
-  const rel='http://schemas.openxmlformats.org/officeDocument/2006/relationships',ct='http://schemas.openxmlformats.org/package/2006/relationships';
-  return zip({
-    '[Content_Types].xml':`${HD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
-    '_rels/.rels':`${HD}<Relationships xmlns="${ct}"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-    'xl/workbook.xml':`${HD}<workbook ${NS} xmlns:r="${rel}"><sheets><sheet name="Cargas" sheetId="1" r:id="rId1"/></sheets><calcPr fullCalcOnLoad="1"/></workbook>`,
-    'xl/_rels/workbook.xml.rels':`${HD}<Relationships xmlns="${ct}"><Relationship Id="rId1" Type="${rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${rel}/styles" Target="styles.xml"/></Relationships>`,
-    'xl/styles.xml':styles,'xl/worksheets/sheet1.xml':sheet
-  });
-}
-function baixarXlsx(){
-  if(!S.cargas.length){alert('Não há cargas para exportar.');return}
-  baixar('cargas_'+new Date().toISOString().slice(0,10)+'.xlsx',montarXlsx(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-}
-/* fim xlsx */
 
-/* nuvem */
-let CFG=null,sb=null,canal=null,busy=false,tm=null,ST_NV='ok';
-try{CFG=JSON.parse(localStorage.cgcfg)}catch(e){}
-const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const hoje=()=>iso(new Date()),desde=()=>iso(new Date(Date.now()-3*864e5));
-const tocar=c=>{c.upd=Date.now();c.dirty=true};
-function agendar(){if(!CFG)return;clearTimeout(tm);tm=setTimeout(()=>sincronizar(),1200)}
-function estado(t,e){
-  if(t)ST_NV=t;
-  const p=S.cargas.filter(c=>c.dirty||!c.sy||c.oc.some(o=>!o.sync)).length;
-  if($('btnNuvem'))$('btnNuvem').innerText='☁️ '+(!CFG?'off':ST_NV=='erro'?'⚠️':p?'⏳'+p:'✓');
-  if($('nvSt'))$('nvSt').innerText=!CFG?'Não conectado.':ST_NV=='erro'?'Erro: '+((e&&e.message)||window._nvErr||'falha')+'. Os dados continuam salvos no aparelho.':p?p+' carga(s) aguardando envio.':'Conectado e sincronizado.';
-  if(e)window._nvErr=e.message||String(e);
-}
-function fotosHtml(c,o){
-  return CFG?o.fotos.map(k=>`<img src="${esc(CFG.url)}/storage/v1/object/public/fotos/${c.id}/${k}.jpg" loading="lazy" onerror="this.style.display='none'" onclick="window.open(this.src)" style="height:${innerWidth>900?140:56}px;border-radius:6px;margin:4px 4px 0 0">`).join(''):'';
-}
-function validar(id){
-  if(!S.quem){alert('Selecione quem está operando.');return}
-  const c=f(id);c.cf={t:Date.now(),q:S.quem};tocar(c);save();render();
-}
-function abrirNuvem(){$('nvUrl').value=CFG?CFG.url:'';$('nvKey').value=CFG?CFG.key:'';estado();$('dNuvem').showModal()}
-function salvarNuvem(){
-  const url=$('nvUrl').value.trim().replace(/\/+$/,''),key=$('nvKey').value.trim();
-  if(!/^https:\/\/[\w-]+\.supabase\.co$/.test(url)){alert('A URL deve ser parecida com https://xxxx.supabase.co');return}
-  try{if(JSON.parse(atob(key.split('.')[1])).role==='service_role'){alert('Essa é a chave service_role (acesso total). Use apenas a chave anon/public.');return}}catch(e){}
-  if(key.length<20){alert('Cole a chave anon/public do projeto.');return}
-  CFG={url,key};localStorage.cgcfg=JSON.stringify(CFG);sb=null;canal=null;sincronizar(true);
-}
-function desconectar(){
-  try{sb&&sb.removeAllChannels()}catch(e){}
-  CFG=null;sb=null;canal=null;localStorage.removeItem('cgcfg');estado('ok');render();$('dNuvem').close();
-}
-function carregarLib(){
-  return window.supabase?Promise.resolve():new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';s.onload=ok;s.onerror=()=>er(new Error('Não foi possível carregar a biblioteca (sem internet?)'));document.head.appendChild(s)});
-}
-async function iniciar(){
-  if(sb)return;
-  await carregarLib();
-  sb=window.supabase.createClient(CFG.url,CFG.key);
-  canal=sb.channel('cg')
-    .on('postgres_changes',{event:'*',schema:'public',table:'cargas'},p=>{if(p.new&&p.new.id){mergeC(p.new);save(false);render()}})
-    .on('postgres_changes',{event:'*',schema:'public',table:'ocorrencias'},p=>{if(p.new&&p.new.id){mergeO(p.new);save(false);render()}})
-    .subscribe();
-}
-function mergeC(r){
-  if((S.ocultas||[]).includes(r.id))return;
-  const d=r.dados||{},t=Date.parse(r.atualizado_em)||0,c=f(r.id);
-  if(!c)S.cargas.push({...d,id:r.id,dia:r.dia,oc:[],log:d.log||[],upd:t,dirty:false,sy:true});
-  else if(!c.dirty&&t>(c.upd||0))Object.assign(c,d,{id:r.id,dia:r.dia,upd:t});
-}
-function mergeO(r){
-  const c=f(r.carga_id);
-  if(!c||c.oc.some(o=>o.id==r.id))return;
-  c.oc.push({...(r.dados||{}),id:r.id,fotos:(r.dados&&r.dados.fotos)||[],sync:true});
-}
-async function push(){
-  for(const c of S.cargas){
-    if(c.dirty||!c.sy){
-      const{oc,dirty,upd,sy,...d}=c;
-      const{error}=await sb.from('cargas').upsert({id:c.id,dia:c.dia||hoje(),dados:d,atualizado_em:new Date(c.upd||Date.now()).toISOString(),atualizado_por:S.quem||null});
-      if(error)throw error;c.dirty=false;c.sy=true;
+  let cacheCargas = [];
+
+  async function carregarCargas() {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient.from('cargas').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      cacheCargas = data || [];
+      renderizarCargas(cacheCargas);
+    } catch (err) {
+      console.error("Erro ao buscar cargas:", err.message);
+      document.getElementById('listaCargas').innerHTML = `<p style="color: red; text-align: center;">Erro ao conectar com o banco de dados.</p>`;
     }
-    for(const o of c.oc){
-      if(o.sync)continue;
-      if(!o.id)o.id=uid();
-      o.up=o.up||[];
-      for(const k of o.fotos){
-        if(o.up.includes(k))continue;
-        const b=await get(k);
-        if(b){const{error}=await sb.storage.from('fotos').upload(c.id+'/'+k+'.jpg',b,{contentType:'image/jpeg',upsert:true});if(error)throw error}
-        o.up.push(k);
+  }
+
+  function renderizarCargas(cargas) {
+    const container = document.getElementById('listaCargas');
+    if (cargas.length === 0) {
+      container.innerHTML = `<p style="text-align: center; color: #64748b;">Nenhuma carga cadastrada ou encontrada.</p>`;
+      return;
+    }
+
+    container.innerHTML = cargas.map(c => `
+      <div class="card-carga">
+        <strong>Nº: ${c.numero}</strong> | Transportadora: ${c.transportadora} (${c.tipo})<br>
+        <small>Destino: ${c.destino} | Status: <b>${c.status}</b> | Turno: ${c.turno} | Pallets: ${c.plts_inteiros} + ${c.fracionados} fr.</small>
+      </div>
+    `).join('');
+  }
+
+  function filtrarCargas() {
+    const turnoSelecionado = document.getElementById('filtroTurno').value;
+    if (!turnoSelecionado) {
+      renderizarCargas(cacheCargas);
+    } else {
+      const filtradas = cacheCargas.filter(c => c.turno === turnoSelecionado);
+      renderizarCargas(filtradas);
+    }
+  }
+
+  function abrirModalImportacao() {
+    document.getElementById('modalImportacao').showModal();
+  }
+
+  function fecharModalImportacao() {
+    document.getElementById('modalImportacao').close();
+  }
+
+  // Validador e Parser Robusto para os dados colados do Excel
+  async function processarEInserirCargas() {
+    const textoBruto = document.getElementById('textoExcel').value;
+    if (!textoBruto.trim()) {
+      alert('Insira os dados copiados da planilha.');
+      return;
+    }
+
+    const linhas = textoBruto.trim().split('\n');
+    const cargasValidas = [];
+    const erros = [];
+
+    linhas.forEach((linha, index) => {
+      const colunas = linha.split('\t').map(c => c.trim());
+
+      if (colunas.length < 13) {
+        erros.push(`Linha ${index + 1}: Colunas insuficientes (${colunas.length}/13).`);
+        return;
       }
-      const{up,sync,...od}=o;
-      const{error}=await sb.from('ocorrencias').upsert({id:o.id,carga_id:c.id,dados:od});
-      if(error)throw error;o.sync=true;
+
+      const [dataHora, numero, transportadora, motorista, tipo, status, pltsInteiros, fracionados, itens, turno, conferente, operador, destino] = colunas;
+
+      if (!numero || !transportadora) {
+        erros.push(`Linha ${index + 1}: Número da carga ou transportadora em branco.`);
+        return;
+      }
+
+      cargasValidas.push({
+        data_hora: dataHora || new Date().toLocaleString(),
+        numero: numero,
+        transportadora: transportadora,
+        motorista: motorista || 'N/I',
+        tipo: tipo || 'Geral',
+        status: status || 'Planejado',
+        plts_inteiros: parseInt(pltsInteiros) || 0,
+        fracionados: parseInt(fracionados) || 0,
+        itens: parseInt(itens) || 0,
+        turno: turno || 'A',
+        conferente: conferente || 'N/I',
+        operador: operador || 'N/I',
+        destino: destino || 'Geral'
+      });
+    });
+
+    if (erros.length > 0) {
+      console.warn("Inconsistências encontradas:", erros);
+      alert(`Atenção: ${erros.length} linha(s) foram ignoradas devido a erros de formatação.`);
+    }
+
+    if (cargasValidas.length > 0 && supabaseClient) {
+      try {
+        const { error } = await supabaseClient.from('cargas').insert(cargasValidas);
+        if (error) throw error;
+        alert(`${cargasValidas.length} carga(s) importada(s) com sucesso!`);
+        fecharModalImportacao();
+        document.getElementById('textoExcel').value = '';
+        carregarCargas();
+      } catch (err) {
+        alert('Erro ao salvar no Supabase: ' + err.message);
+      }
     }
   }
-}
-async function pull(){
-  const a=await sb.from('cargas').select('*').gte('dia',desde()).limit(1000);
-  if(a.error)throw a.error;
-  a.data.forEach(mergeC);
-  const ids=a.data.map(r=>r.id);
-  if(ids.length){const b=await sb.from('ocorrencias').select('*').in('carga_id',ids);if(b.error)throw b.error;b.data.forEach(mergeO)}
-}
-async function sincronizar(m){
-  if(!CFG||busy)return;
-  if(!navigator.onLine){estado('off');return}
-  busy=true;
-  try{await iniciar();await push();await pull();estado('ok');if(m===true)alert('Sincronizado!')}
-  catch(e){estado('erro',e);if(m===true)alert('Erro: '+(e.message||e))}
-  busy=false;save(false);render();
-}
-/* fim nuvem */
 
-if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
-render();
-if(CFG)sincronizar();addEventListener('online',()=>sincronizar());setInterval(()=>sincronizar(),30000);
+  // Inicializa a listagem ao carregar a página
+  window.onload = carregarCargas;
 </script>
+
 </body>
 </html>
