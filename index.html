@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cargas do Turno</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f4e79">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:#eef1f5;color:#222;padding-bottom:30px}
+header{background:#1f4e79;color:#fff;padding:10px;position:sticky;top:0;z-index:5}
+header h1{font-size:1.1rem;margin-bottom:8px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+select,input,textarea,button{font-size:1rem;padding:9px;border-radius:8px;border:1px solid #bbb}
+button{background:#fff;cursor:pointer;font-weight:600}
+.pri{background:#1f4e79;color:#fff;border-color:#1f4e79}
+header select,header button{padding:7px;font-size:.85rem}
+#res{background:#fff;padding:10px;font-weight:600;text-align:center;border-bottom:1px solid #ccc}
+main{max-width:640px;margin:0 auto;padding:8px}
+.c{background:#fff;border-radius:10px;padding:10px;margin-bottom:8px;border-left:8px solid #999}
+.c b{font-size:1.05rem}.c small{color:#666;display:block}
+.c select{width:100%;margin:8px 0;font-weight:700}
+.t{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:#444;margin-bottom:6px}
+.b{display:inline-block;background:#fdecea;color:#b00020;border-radius:6px;padding:2px 6px;font-size:.8rem;margin-right:4px}
+.o{font-size:.8rem;border-top:1px dashed #ccc;padding-top:4px;margin-top:4px}
+dialog{border:none;border-radius:12px;padding:14px;width:min(92vw,560px);margin:auto}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog label{display:block;font-size:.8rem;margin:8px 0 2px}
+dialog select,dialog input,dialog textarea{width:100%}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚚 Cargas do Turno</h1>
+  <div class="row">
+    <select id="quem" onchange="S.quem=this.value;save()"></select>
+    <button onclick="novaPessoa()">＋ Pessoa</button>
+    <select id="turno" onchange="S.turno=this.value;save()"><option value="">Turno</option><option>A</option><option>B</option><option>C</option></select>
+    <button onclick="$('dImp').showModal()">📥 Importar</button>
+    <button onclick="abrirRel()">📤 Relatório</button>
+  </div>
+</header>
+<div id="res"></div>
+<main id="lista"></main>
+
+<dialog id="dImp">
+  <b>Importar cargas do Excel</b>
+  <p style="font-size:.8rem;margin:6px 0">Copie as linhas da planilha (na mesma ordem das colunas: Data/Hora, Nº, Transportadora, Motorista, Tipo, Status, Plts inteiros, Fracionados, Itens, Turno, Conferente, Turno, Operador, Destino) e cole abaixo. Cargas já existentes são ignoradas.</p>
+  <textarea id="tsv" rows="8" placeholder="Cole aqui"></textarea>
+  <div class="row" style="margin-top:8px"><button class="pri" onclick="importar()">Importar</button><button onclick="$('dImp').close()">Cancelar</button></div>
+</dialog>
+
+<dialog id="dOc">
+  <b id="ocTit">Ocorrência</b>
+  <label>Área responsável</label><select id="ocAr"></select>
+  <label>Motivo</label><select id="ocMot"></select>
+  <label>Tempo de atraso (minutos)</label><input type="number" id="ocMin" min="0" inputmode="numeric" value="0">
+  <label>Observação</label><input type="text" id="ocObs">
+  <label>Fotos</label><input type="file" id="foto" accept="image/*" capture="environment" multiple>
+  <div class="row" style="margin-top:10px"><button class="pri" onclick="salvarOc()">Salvar</button><button onclick="$('dOc').close()">Cancelar</button></div>
+</dialog>
+
+<dialog id="dRel">
+  <b>Relatório do turno</b>
+  <textarea id="rel" rows="14" style="margin-top:8px"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button class="pri" onclick="compartilhar()">Compartilhar</button><button onclick="copiar()">Copiar</button>
+    <button onclick="baixarCsv()">CSV</button><button onclick="backup()">Backup</button>
+  </div>
+  <div class="row" style="margin-top:8px"><button onclick="encerrar()">Encerrar turno</button><button onclick="$('dRel').close()">Fechar</button></div>
+</dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ST=['NÃO INICIADA','EM SEPARAÇÃO','FRACIONADO EM SEPARAÇÃO','FRACIONADO PRONTO','CARGA PRONTA','AG. VEÍCULO','AG. CARREGAMENTO','EM CARREGAMENTO','CARREGADO'];
+const COR={'NÃO INICIADA':'#e57373','EM SEPARAÇÃO':'#ffb74d','FRACIONADO EM SEPARAÇÃO':'#81c784','FRACIONADO PRONTO':'#bdbdbd','CARGA PRONTA':'#42a5f5','AG. VEÍCULO':'#bdbdbd','AG. CARREGAMENTO':'#bdbdbd','EM CARREGAMENTO':'#bdbdbd','CARREGADO':'#2e7d32'};
+const AR=['Logística','LC','Derivados'];
+const MOT=['Lote não encontrado','Caminhão sujo / lavação','Quebra de máquina','Palete avariado / faltando mercadoria','Sem veículo / motorista','Falta de operador ou empilhadeira','Outro'];
+let S;try{S=JSON.parse(localStorage.cg)}catch(e){}
+S=Object.assign({cargas:[],pessoas:[],quem:'',turno:'',arq:[]},S||{});
+const save=()=>localStorage.cg=JSON.stringify(S);
+const f=id=>S.cargas.find(c=>c.id==id);
+const hm=t=>t?new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const atr=(c,a)=>c.oc.filter(o=>o.ar==a).reduce((s,o)=>s+o.min,0);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* fotos em IndexedDB */
+const db=new Promise(r=>{const q=indexedDB.open('cg',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>r(q.result)});
+const put=async(k,v)=>{const d=await db;return new Promise(r=>{const t=d.transaction('f','readwrite');t.objectStore('f').put(v,k);t.oncomplete=r})};
+const get=async k=>{const d=await db;return new Promise(r=>{const q=d.transaction('f').objectStore('f').get(k);q.onsuccess=()=>r(q.result)})};
+const comprimir=fl=>new Promise(r=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1000/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(r,'image/jpeg',.7)};i.src=URL.createObjectURL(fl)});
+
+function render(){
+  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),n=g=>cs.filter(g).length;
+  $('res').innerText=`✅ ${n(c=>c.st=='CARREGADO')} · 🔵 ${n(c=>/PRONT/.test(c.st))} · 🔧 ${n(c=>/SEPARA|AG\.|EM CARREG/.test(c.st))} · ⚪ ${n(c=>c.st=='NÃO INICIADA')}  de ${cs.length}`;
+  $('quem').innerHTML='<option value="">Quem opera?</option>'+S.pessoas.map(p=>`<option ${p==S.quem?'selected':''}>${esc(p)}</option>`).join('');
+  $('turno').value=S.turno;
+  $('lista').innerHTML=cs.length?cs.map(c=>`<div class="c" style="border-color:${COR[c.st]}">
+    <b>${esc(c.prev)} · ${esc(c.dest)}</b><small>${esc(c.tr)} — ${esc(c.mot)}</small>
+    <div class="t"><span>${esc(c.tipo)}</span><span>${esc(c.pi)} int + ${esc(c.pf)} frac</span><span>${esc(c.it)} itens</span><span>Nº ${c.id}</span></div>
+    <select onchange="setSt('${c.id}',this.value)" style="background:${COR[c.st]}22">${ST.map(s=>`<option ${s==c.st?'selected':''}>${s}</option>`).join('')}</select>
+    <div class="t"><span>Chegada ${hm(c.ch)||'–'}</span><span>Início ${hm(c.ini)||'–'}</span><span>Fim ${hm(c.fim)||'–'}</span><span>Lib. ${hm(c.lib)||'–'}</span></div>
+    ${AR.map(a=>atr(c,a)?`<span class="b">${a} ${hhmm(atr(c,a))}</span>`:'').join('')}
+    <div class="row" style="margin-top:6px"><button onclick="abrirOc('${c.id}')">＋ Ocorrência</button>
+    ${c.st=='CARREGADO'&&!c.lib?`<button onclick="liberar('${c.id}')">Liberar</button>`:''}
+    <input type="number" placeholder="Shelf %" value="${esc(c.shelf)}" style="width:90px" onchange="f('${c.id}').shelf=this.value;save()"></div>
+    ${c.oc.map(o=>`<div class="o">⚠️ ${hm(o.t)} ${esc(o.mot)} — ${o.min} min (${o.ar}) ${esc(o.obs)} · ${esc(o.q)} ${o.fotos.length?'📷'+o.fotos.length:''}</div>`).join('')}
+  </div>`).join(''):'<p style="text-align:center;padding:30px;color:#666">Nenhuma carga. Toque em Importar e cole as linhas do Excel.</p>';
+}
+function setSt(id,v){
+  if(!S.quem){alert('Selecione quem está operando.');return render()}
+  const c=f(id),t=Date.now(),m={'AG. CARREGAMENTO':'ch','EM CARREGAMENTO':'ini','CARREGADO':'fim'}[v];
+  c.st=v;c.log.push({t,st:v,q:S.quem});if(m&&!c[m])c[m]=t;save();render();
+}
+function liberar(id){f(id).lib=Date.now();save();render()}
+function novaPessoa(){const p=(prompt('Nome (conferente/operador/assistente):')||'').trim();if(p&&!S.pessoas.includes(p)){S.pessoas.push(p);S.quem=p;save();render()}}
+function importar(){
+  let n=0;
+  $('tsv').value.split('\n').map(l=>l.split('\t')).forEach(x=>{
+    const id=(x[1]||'').trim();if(!/^\d+$/.test(id)||S.cargas.some(c=>c.id==id))return;
+    const h=(x[0]||'').match(/(\d{1,2}):(\d{2})/),st=(x[5]||'').trim().toUpperCase();
+    S.cargas.push({id,prev:h?h[1].padStart(2,'0')+':'+h[2]:'',tr:(x[2]||'').trim(),mot:(x[3]||'').trim(),tipo:(x[4]||'').trim(),st:ST.includes(st)?st:'NÃO INICIADA',pi:(x[6]||'').trim(),pf:(x[7]||'').trim(),it:(x[8]||'').trim(),tu:(x[9]||'').trim(),conf:(x[10]||'').trim(),op:(x[12]||'').trim(),dest:(x[13]||'').trim(),shelf:'',oc:[],log:[]});n++;
+  });
+  save();render();$('tsv').value='';$('dImp').close();alert(n+' carga(s) importada(s).');
+}
+let ocId=null;
+function abrirOc(id){
+  if(!S.quem){alert('Selecione quem está operando.');return}
+  ocId=id;$('ocTit').innerText='Ocorrência – '+f(id).dest;
+  $('ocAr').innerHTML=AR.map(a=>`<option>${a}</option>`).join('');
+  $('ocMot').innerHTML=MOT.map(m=>`<option>${m}</option>`).join('');
+  $('ocMin').value=0;$('ocObs').value='';$('foto').value='';$('dOc').showModal();
+}
+async function salvarOc(){
+  const fotos=[];
+  for(const fl of $('foto').files){const k=uid();await put(k,await comprimir(fl));fotos.push(k)}
+  f(ocId).oc.push({t:Date.now(),ar:$('ocAr').value,mot:$('ocMot').value,min:+$('ocMin').value||0,obs:$('ocObs').value.trim(),q:S.quem,fotos});
+  save();render();$('dOc').close();
+}
+
+/* relatório */
+function relatorio(){
+  const cs=[...S.cargas].sort((a,b)=>a.prev.localeCompare(b.prev)),T=cs.length||1,n=g=>cs.filter(g).length;
+  const pa=AR.map(a=>`${a} ${Math.round(100*n(c=>atr(c,a)>0)/T)}% (${hhmm(cs.reduce((s,c)=>s+atr(c,a),0))})`).join(' · ');
+  let t=`📦 *CARGAS – TURNO ${S.turno||'?'} – ${new Date().toLocaleDateString('pt-BR')}*\n✅ Carregadas: ${n(c=>c.st=='CARREGADO')}/${cs.length} | 🔵 Prontas: ${n(c=>/PRONT/.test(c.st))} | 🔧 Em andamento: ${n(c=>/SEPARA|AG\.|EM CARREG/.test(c.st))} | ⚪ Não iniciadas: ${n(c=>c.st=='NÃO INICIADA')}\n🚨 Veículos com atraso: ${pa}\n`;
+  const oc=[];cs.forEach(c=>c.oc.forEach(o=>oc.push([c,o])));
+  if(oc.length)t+='\n*Ocorrências*\n'+oc.map(([c,o])=>`• ${hm(o.t)} ${c.dest} (${c.id}) – ${o.mot}${o.min?` – ${o.min} min (${o.ar})`:''}${o.obs?' – '+o.obs:''} – ${o.q}${o.fotos.length?' 📷'+o.fotos.length:''}`).join('\n')+'\n';
+  return t+'\n*Cargas*\n'+cs.map(c=>`• ${c.prev} ${c.dest} – ${c.st}${c.fim?' (fim '+hm(c.fim)+')':''}`).join('\n');
+}
+function abrirRel(){$('rel').value=relatorio();$('dRel').showModal()}
+const copiar=()=>navigator.clipboard.writeText($('rel').value).then(()=>alert('Copiado!'));
+async function compartilhar(){
+  const text=$('rel').value,files=[];
+  try{for(const c of S.cargas)for(const o of c.oc)for(const k of o.fotos){const b=await get(k);if(b)files.push(new File([b],k+'.jpg',{type:'image/jpeg'}))}}catch(e){}
+  try{
+    if(files.length&&navigator.canShare&&navigator.canShare({files}))return await navigator.share({text,files});
+    if(navigator.share)return await navigator.share({text});
+  }catch(e){if(e.name=='AbortError')return}
+  copiar();
+}
+function baixar(nome,txt,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;document.body.appendChild(a);a.click();a.remove()}
+function baixarCsv(){
+  const h=['Hora','Nº carga','Transportadora','Motorista','Tipo','Status','Plts inteiros','Fracionados','Itens','Turno','Conferente','Operador','Destino','Atraso Logística','Atraso LC','Atraso Derivados','Hora chegada','Início carregamento','Fim carregamento','Hora liberação','Shelf min %','Ocorrências'];
+  const r=S.cargas.map(c=>[c.prev,c.id,c.tr,c.mot,c.tipo,c.st,c.pi,c.pf,c.it,c.tu,c.conf,c.op,c.dest,...AR.map(a=>hhmm(atr(c,a))),hm(c.ch),hm(c.ini),hm(c.fim),hm(c.lib),c.shelf,c.oc.map(o=>o.mot+' '+o.min+'min').join(' | ')]);
+  baixar('cargas_'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+[h,...r].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
+}
+const backup=()=>baixar('backup_cargas_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(S),'application/json');
+function encerrar(){
+  if(!confirm('Encerrar o turno? As cargas CARREGADAS serão arquivadas (um CSV de backup será baixado). As demais continuam na lista.'))return;
+  baixarCsv();S.arq.push({d:Date.now(),turno:S.turno,cargas:S.cargas.filter(c=>c.st=='CARREGADO')});
+  S.cargas=S.cargas.filter(c=>c.st!='CARREGADO');save();render();$('dRel').close();
+}
+
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
+render();
+</script>
+</body>
+</html>
